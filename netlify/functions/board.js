@@ -106,18 +106,41 @@ exports.handler = async (event) => {
 
     if (event.httpMethod === 'GET') {
       const date = String((event.queryStringParameters || {}).date || '').trim();
-      if (!date) {
-        return response(400, { error: 'Query parameter "date" is required (YYYY-MM-DD).' });
+      const rows = (await readBoardRows(sheets, spreadsheetId)).map(mapBoardRow);
+
+      if (date) {
+        const filtered = rows.filter((row) => String(row.date || '').trim() === date);
+        return response(200, {
+          date,
+          members: groupByMember(filtered),
+        });
       }
 
-      const rows = await readBoardRows(sheets, spreadsheetId);
-      const filtered = rows
-        .filter((row) => String(row[0] || '').trim() === date)
-        .map(mapBoardRow);
+      const groupedRows = rows.reduce((result, row) => {
+        const rowDate = String(row.date || '').trim();
+        if (!rowDate) {
+          return result;
+        }
+
+        if (!result[rowDate]) {
+          result[rowDate] = [];
+        }
+        result[rowDate].push(row);
+        return result;
+      }, {});
+
+      const dates = Object.keys(groupedRows).sort((left, right) => right.localeCompare(left));
+      const byDate = {};
+      dates.forEach((rowDate) => {
+        byDate[rowDate] = {
+          date: rowDate,
+          members: groupByMember(groupedRows[rowDate]),
+        };
+      });
 
       return response(200, {
-        date,
-        members: groupByMember(filtered),
+        dates,
+        by_date: byDate,
       });
     }
 

@@ -248,11 +248,6 @@
       background: #11201b;
     }
 
-    .cell-editor:empty:not(:focus):before {
-      content: attr(data-placeholder);
-      color: #5d8073;
-    }
-
     .cell-editor:focus {
       border-color: #3f9579;
       box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.2);
@@ -669,7 +664,6 @@
       <section id="tab-board" class="tab-panel active">
         <div class="panel-controls">
           <div id="weekSummary" class="empty-state"></div>
-          <button id="appendWeekBtn" class="btn accent" type="button">Append Next Week</button>
         </div>
         <div class="table-wrap">
           <table>
@@ -691,11 +685,11 @@
         <div class="setup-grid">
           <div class="field">
             <label for="sheetIdInput">GOOGLE_SHEET_ID</label>
-            <input id="sheetIdInput" class="input" type="password" placeholder="Paste your sheet ID" autocomplete="off" />
+            <input id="sheetIdInput" class="input" type="password" autocomplete="off" />
           </div>
           <div class="field">
             <label for="siteUrlInput">NETLIFY_SITE_URL</label>
-            <input id="siteUrlInput" class="input" type="text" placeholder="https://your-site.netlify.app" />
+            <input id="siteUrlInput" class="input" type="text" />
           </div>
         </div>
         <div class="panel-controls">
@@ -721,11 +715,11 @@
       <div class="modal-grid">
         <div class="field full">
           <label for="ticketTitleInput">Title</label>
-          <input id="ticketTitleInput" class="input" type="text" placeholder="Write a concise ticket title" />
+          <input id="ticketTitleInput" class="input" type="text" />
         </div>
         <div class="field full">
           <label for="ticketDescInput">Description</label>
-          <textarea id="ticketDescInput" class="textarea" placeholder="Short problem statement or acceptance notes"></textarea>
+          <textarea id="ticketDescInput" class="textarea"></textarea>
         </div>
         <div class="field">
           <label for="ticketStatusSelect">Status</label>
@@ -757,7 +751,7 @@
         </div>
         <div class="field full">
           <label for="taskFreeTextInput">Free text (optional)</label>
-          <input id="taskFreeTextInput" class="input" type="text" placeholder="If not tied to ticket, write custom task text" />
+          <input id="taskFreeTextInput" class="input" type="text" />
         </div>
         <div class="field">
           <label for="taskStatusSelect">Status</label>
@@ -812,10 +806,9 @@
 
     const state = {
       activeTab: 'board',
-      displayedWeekStarts: [],
+      visibleDates: [],
       boardByDate: {},
       boardDraft: {},
-      loadingDates: new Set(),
       cellRefs: new Map(),
       tickets: [],
       ticketMap: {},
@@ -1186,10 +1179,6 @@
       return parsedBody;
     }
 
-    function toIsoDateUTC(date) {
-      return date.toISOString().slice(0, 10);
-    }
-
     function fromIsoDate(dateString) {
       const parts = String(dateString).split('-').map(Number);
       if (parts.length !== 3 || parts.some(Number.isNaN)) {
@@ -1198,40 +1187,8 @@
       return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
     }
 
-    function addDaysUTC(date, days) {
-      const copy = new Date(date);
-      copy.setUTCDate(copy.getUTCDate() + days);
-      return copy;
-    }
-
-    function getCurrentWeekMondayIso() {
-      const now = new Date();
-      const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
-      const day = utcDate.getUTCDay();
-      const diff = day === 0 ? -6 : 1 - day;
-      utcDate.setUTCDate(utcDate.getUTCDate() + diff);
-      return toIsoDateUTC(utcDate);
-    }
-
-    function getWeekDates(weekStartIso) {
-      const startDate = fromIsoDate(weekStartIso);
-      if (!startDate) {
-        return [];
-      }
-
-      const dates = [];
-      for (let i = 0; i < 7; i += 1) {
-        dates.push(toIsoDateUTC(addDaysUTC(startDate, i)));
-      }
-      return dates;
-    }
-
     function getVisibleDates() {
-      const dates = [];
-      state.displayedWeekStarts.forEach((weekStart) => {
-        dates.push(...getWeekDates(weekStart));
-      });
-      return dates;
+      return state.visibleDates.slice();
     }
 
     function formatDateLabel(isoDate) {
@@ -1250,17 +1207,15 @@
 
     function updateWeekSummary() {
       const target = document.getElementById('weekSummary');
-      if (!state.displayedWeekStarts.length) {
-        target.textContent = 'No weeks selected.';
+      const dates = getVisibleDates();
+      if (!dates.length) {
+        target.textContent = 'No dates found. Add dates in the board sheet.';
         return;
       }
 
-      const labels = state.displayedWeekStarts.map((weekStart) => {
-        const dates = getWeekDates(weekStart);
-        const end = dates[6] || weekStart;
-        return `${weekStart} to ${end}`;
-      });
-      target.textContent = `Visible weeks: ${labels.join(' | ')}`;
+      const newest = dates[0];
+      const oldest = dates[dates.length - 1];
+      target.textContent = `Dates (newest first): ${newest} to ${oldest}`;
     }
 
     function cellKey(date, member) {
@@ -1304,13 +1259,6 @@
       }
 
       const editor = refs.editor;
-
-      if (state.loadingDates.has(date)) {
-        editor.setAttribute('contenteditable', 'false');
-        editor.innerHTML = '';
-        editor.appendChild(createSpinnerNode());
-        return;
-      }
 
       editor.setAttribute('contenteditable', 'true');
 
@@ -1433,42 +1381,52 @@
       visibleDates.forEach((date) => renderCellsForDate(date));
     }
 
-    async function loadBoardDate(date) {
-      state.loadingDates.add(date);
-      renderCellsForDate(date);
+    async function loadVisibleBoardDates(forceReload) {
+      if (!forceReload && state.visibleDates.length) {
+        updateWeekSummary();
+        renderBoardTable();
+        return;
+      }
 
       try {
-        const data = await apiRequest(`/api/board?date=${encodeURIComponent(date)}`);
-        const members = data && data.members && typeof data.members === 'object' ? data.members : {};
-        state.boardByDate[date] = {
-          date,
-          members,
-        };
+        const data = await apiRequest('/api/board');
+        const byDate = data && data.by_date && typeof data.by_date === 'object' ? data.by_date : {};
+        const dates = Object.keys(byDate)
+          .filter((date) => String(date).trim().length > 0)
+          .sort((left, right) => right.localeCompare(left));
+
+        const nextBoardByDate = {};
+        dates.forEach((date) => {
+          const bucket = byDate[date];
+          const members = bucket && bucket.members && typeof bucket.members === 'object' ? bucket.members : {};
+          nextBoardByDate[date] = {
+            date,
+            members,
+          };
+        });
+
+        state.visibleDates = dates;
+        state.boardByDate = nextBoardByDate;
+
+        const nextDraft = {};
+        dates.forEach((date) => {
+          MEMBERS.forEach((member) => {
+            const key = cellKey(date, member);
+            if (Object.prototype.hasOwnProperty.call(state.boardDraft, key)) {
+              nextDraft[key] = state.boardDraft[key];
+              return;
+            }
+
+            const tasks = getTasksForMember(date, member);
+            nextDraft[key] = serializeTasksForEditor(tasks);
+          });
+        });
+        state.boardDraft = nextDraft;
+
+        updateWeekSummary();
+        renderBoardTable();
       } catch (error) {
-        state.boardByDate[date] = {
-          date,
-          members: {},
-        };
-        showToast(`Failed to load board for ${date}: ${error.message}`, 'error');
-      } finally {
-        state.loadingDates.delete(date);
-        renderCellsForDate(date);
-      }
-    }
-
-    async function loadVisibleBoardDates(forceReload) {
-      const dates = getVisibleDates();
-      const jobs = [];
-
-      dates.forEach((date) => {
-        if (!forceReload && state.boardByDate[date]) {
-          return;
-        }
-        jobs.push(loadBoardDate(date));
-      });
-
-      if (jobs.length) {
-        await Promise.all(jobs);
+        showToast(`Failed to load board: ${error.message}`, 'error');
       }
     }
 
@@ -1749,7 +1707,7 @@
 
         closeModal('addTaskModal');
         showToast('Task added to board.', 'success');
-        await loadBoardDate(date);
+        await loadVisibleBoardDates(true);
       } catch (error) {
         showToast(`Add task failed: ${error.message}`, 'error');
       } finally {
@@ -1782,6 +1740,11 @@
       button.disabled = true;
 
       try {
+        if (!getVisibleDates().length) {
+          showToast('No dates available to save.', 'error');
+          return;
+        }
+
         syncVisibleEditorsToDraft();
 
         const cells = [];
@@ -2005,20 +1968,6 @@
         });
       });
 
-      document.getElementById('appendWeekBtn').addEventListener('click', async () => {
-        const lastWeek = state.displayedWeekStarts[state.displayedWeekStarts.length - 1];
-        const startDate = fromIsoDate(lastWeek);
-        if (!startDate) {
-          return;
-        }
-
-        const nextWeek = toIsoDateUTC(addDaysUTC(startDate, 7));
-        state.displayedWeekStarts.push(nextWeek);
-        updateWeekSummary();
-        renderBoardTable();
-        await loadVisibleBoardDates(false);
-      });
-
       document.getElementById('refreshBoardBtn').addEventListener('click', async () => {
         await loadTickets(true);
         state.boardDraft = {};
@@ -2060,14 +2009,11 @@
       populateStatusSelect(document.getElementById('ticketStatusSelect'), 'to do');
       populateStatusSelect(document.getElementById('taskStatusSelect'), 'to do');
 
-      const monday = getCurrentWeekMondayIso();
-      state.displayedWeekStarts = [monday];
-
       updateWeekSummary();
       renderBoardTable();
 
       await loadTickets(false);
-      await loadVisibleBoardDates(false);
+      await loadVisibleBoardDates(true);
     }
 
     async function bootstrap() {
@@ -2077,15 +2023,6 @@
       if (ticketId) {
         await showTicketDetail(ticketId);
         return;
-      }
-
-      await bootstrapBoard();
-    }
-
-    bootstrap();
-  </script>
-</body>
-</html>        return;
       }
 
       await bootstrapBoard();
