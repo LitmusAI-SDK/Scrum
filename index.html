@@ -224,42 +224,101 @@
       background: #131c19;
     }
 
-    .cell-tasks {
-      min-height: 62px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 8px;
-    }
-
-    .task-item {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      border: 1px solid #274239;
+    .cell-editor {
+      width: 100%;
+      min-height: 84px;
+      border: 1px solid #2a453b;
       border-radius: 8px;
-      padding: 6px;
+      background: #0f1816;
+      color: #d7ece5;
+      padding: 8px;
+      font-family: inherit;
+      font-size: 12px;
+      line-height: 1.45;
+      outline: none;
+      white-space: pre-wrap;
+      word-break: break-word;
+      cursor: text;
+      direction: ltr;
+      text-align: left;
+      unicode-bidi: plaintext;
+    }
+
+    .cell-editor[data-mode='display'] {
+      background: #11201b;
+    }
+
+    .cell-editor:empty:not(:focus):before {
+      content: attr(data-placeholder);
+      color: #5d8073;
+    }
+
+    .cell-editor:focus {
+      border-color: #3f9579;
+      box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.2);
+    }
+
+    .cell-editor p {
+      margin: 0 0 6px;
+    }
+
+    .cell-editor p:last-child {
+      margin-bottom: 0;
+    }
+
+    .cell-editor ul,
+    .cell-editor ol {
+      margin: 0 0 6px 18px;
+      padding: 0;
+    }
+
+    .cell-editor li {
+      margin: 0 0 3px;
+    }
+
+    .cell-editor hr {
+      border: 0;
+      border-top: 1px dashed #356254;
+      margin: 8px 0;
+    }
+
+    .cell-editor code {
+      background: #1a2b25;
+      border: 1px solid #2a453b;
+      border-radius: 4px;
+      padding: 1px 4px;
+    }
+
+    .cell-editor strong {
+      color: #e7faf3;
+    }
+
+    .cell-editor em {
+      color: #c7e6db;
+    }
+
+    .ticket-tag {
+      display: inline-block;
       background: #172521;
-      animation: fade-in 220ms ease;
-    }
-
-    .task-main {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 6px;
-      line-height: 1.3;
-      color: #d3ece4;
-    }
-
-    .ticket-link {
+      border: 1px solid #274239;
+      border-radius: 4px;
+      padding: 1px 6px;
       color: #99efcf;
       text-decoration: none;
-      border-bottom: 1px dashed #4eaf8e;
+      font-size: 11px;
+      line-height: 1.3;
+      vertical-align: middle;
+      margin: 0 2px;
+      user-select: none;
+      white-space: nowrap;
     }
 
-    .ticket-link:hover {
+    .cell-editor[data-mode='editing'] .ticket-tag {
+      pointer-events: none;
+    }
+    
+    .ticket-tag:hover {
+      background: #1d332d;
       color: #cbffe9;
     }
 
@@ -595,6 +654,7 @@
       </div>
       <div class="topbar-actions">
         <button id="openCreateTicketBtn" class="btn accent" type="button">+ Create Ticket</button>
+        <button id="saveBoardBtn" class="btn accent" type="button">Save Board</button>
         <button id="refreshBoardBtn" class="btn" type="button">Refresh Board</button>
       </div>
     </header>
@@ -631,7 +691,7 @@
         <div class="setup-grid">
           <div class="field">
             <label for="sheetIdInput">GOOGLE_SHEET_ID</label>
-            <input id="sheetIdInput" class="input" type="text" placeholder="Paste your sheet ID" />
+            <input id="sheetIdInput" class="input" type="password" placeholder="Paste your sheet ID" autocomplete="off" />
           </div>
           <div class="field">
             <label for="siteUrlInput">NETLIFY_SITE_URL</label>
@@ -723,11 +783,29 @@
       siteUrl: 'litmus_netlify_site_url',
     };
 
-    const STATUS_FLOW = ['todo', 'in prog', 'review', 'done', 'on hold'];
+    const STATUS_FLOW = ['to do', 'in progress', 'in review', 'done', 'on hold'];
+    const STATUS_ALIASES = {
+      todo: 'to do',
+      'to do': 'to do',
+      'in prog': 'in progress',
+      'in progress': 'in progress',
+      review: 'in review',
+      'in review': 'in review',
+      done: 'done',
+      'on hold': 'on hold',
+      'on-hold': 'on hold',
+    };
+    const STATUS_LABELS = {
+      'to do': 'To Do',
+      'in progress': 'In Progress',
+      'in review': 'In Review',
+      done: 'Done',
+      'on hold': 'On Hold',
+    };
     const STATUS_CLASS = {
-      todo: 'status-todo',
-      'in prog': 'status-in-prog',
-      review: 'status-review',
+      'to do': 'status-todo',
+      'in progress': 'status-in-prog',
+      'in review': 'status-review',
       done: 'status-done',
       'on hold': 'status-on-hold',
     };
@@ -736,6 +814,7 @@
       activeTab: 'board',
       displayedWeekStarts: [],
       boardByDate: {},
+      boardDraft: {},
       loadingDates: new Set(),
       cellRefs: new Map(),
       tickets: [],
@@ -747,7 +826,12 @@
 
     function normalizeStatus(status) {
       const value = String(status || '').trim().toLowerCase();
-      return STATUS_FLOW.includes(value) ? value : 'todo';
+      return STATUS_ALIASES[value] || 'to do';
+    }
+
+    function getStatusLabel(status) {
+      const normalized = normalizeStatus(status);
+      return STATUS_LABELS[normalized] || STATUS_LABELS['to do'];
     }
 
     function getNextStatus(status) {
@@ -763,6 +847,286 @@
 
     function buildTicketUrl(ticketId) {
       return `${getStoredSiteUrl().replace(/\/$/, '')}/${encodeURIComponent(ticketId)}`;
+    }
+
+    function extractTicketId(input) {
+      const source = String(input || '');
+      const match = source.match(/LITMUS-\d+/i);
+      return match ? match[0].toUpperCase() : '';
+    }
+
+    function serializeTasksForEditor(tasks) {
+      return tasks
+        .map((task) => {
+          const ticketId = String(task.ticket_id || '').trim();
+          const text = String(task.free_text || '').replace(/\r\n/g, '\n');
+          if (!text && ticketId) {
+            return ticketId;
+          }
+
+          if (!ticketId || new RegExp(`\\b${ticketId}\\b`, 'i').test(text)) {
+            return text;
+          }
+
+          return `${text} ${ticketId}`;
+        })
+        .filter((line) => line.length > 0)
+        .join('\n');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function escapeRegex(value) {
+      return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function getTicketTagHtml(ticketId, asLink) {
+      const safeId = escapeHtml(ticketId);
+      const ticket = state.ticketMap[ticketId];
+      const ticketTitle = ticket && ticket.title ? ` title="${escapeHtml(ticket.title)}"` : '';
+
+      if (asLink) {
+        return `<a class="ticket-tag" href="${escapeHtml(buildTicketUrl(ticketId))}" data-ticket-id="${safeId}" target="_blank" rel="noopener noreferrer" contenteditable="false"${ticketTitle}>${safeId}</a>`;
+      }
+
+      return `<span class="ticket-tag" data-ticket-id="${safeId}" contenteditable="false"${ticketTitle}>${safeId}</span>`;
+    }
+
+    function replaceTicketTokensWithTags(text, asLink) {
+      const tokens = [];
+      const withPlaceholders = String(text || '').replace(
+        /https?:\/\/[^\s<]*LITMUS-\d+\b|\bLITMUS-\d+\b/gi,
+        (match) => {
+          const ticketId = extractTicketId(match);
+          if (!ticketId) {
+            return match;
+          }
+
+          const token = `@@TICKET_${tokens.length}@@`;
+          tokens.push({ token, ticketId });
+          return token;
+        },
+      );
+
+      let html = escapeHtml(withPlaceholders);
+      tokens.forEach((entry) => {
+        html = html.replace(new RegExp(escapeRegex(entry.token), 'g'), getTicketTagHtml(entry.ticketId, asLink));
+      });
+
+      return html;
+    }
+
+    function getTicketTokenSignature(text) {
+      const source = String(text || '');
+      const tokens = [];
+      const regex = /https?:\/\/[^\s<]*LITMUS-\d+\b|\bLITMUS-\d+\b/gi;
+
+      let match = regex.exec(source);
+      while (match) {
+        const ticketId = extractTicketId(match[0]);
+        if (ticketId) {
+          tokens.push(`${ticketId}@${match.index}`);
+        }
+        match = regex.exec(source);
+      }
+
+      return tokens.join('|');
+    }
+
+    function renderEditableSourceHtml(sourceText) {
+      const normalized = String(sourceText || '').replace(/\r\n/g, '\n');
+      if (!normalized) {
+        return '';
+      }
+
+      return normalized
+        .split('\n')
+        .map((line) => replaceTicketTokensWithTags(line, false))
+        .join('<br>');
+    }
+
+    function renderInlineMarkdown(line) {
+      return replaceTicketTokensWithTags(line, true)
+        .replace(/`([^`]+)`/g, '<code>$1</code>')
+        .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    }
+
+    function renderMarkdownToHtml(sourceText) {
+      const normalized = String(sourceText || '').replace(/\r\n/g, '\n');
+      if (!normalized.trim()) {
+        return '';
+      }
+
+      const lines = normalized.split('\n');
+      const parts = [];
+      let listType = '';
+
+      const closeList = () => {
+        if (listType) {
+          parts.push(`</${listType}>`);
+          listType = '';
+        }
+      };
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+        const orderedMatch = line.match(/^\d+\.\s+(.+)$/);
+
+        if (bulletMatch) {
+          if (listType !== 'ul') {
+            closeList();
+            listType = 'ul';
+            parts.push('<ul>');
+          }
+          parts.push(`<li>${renderInlineMarkdown(bulletMatch[1])}</li>`);
+          return;
+        }
+
+        if (orderedMatch) {
+          if (listType !== 'ol') {
+            closeList();
+            listType = 'ol';
+            parts.push('<ol>');
+          }
+          parts.push(`<li>${renderInlineMarkdown(orderedMatch[1])}</li>`);
+          return;
+        }
+
+        closeList();
+
+        if (!trimmed) {
+          parts.push('<p><br></p>');
+          return;
+        }
+
+        if (/^---+$/.test(trimmed)) {
+          parts.push('<hr />');
+          return;
+        }
+
+        parts.push(`<p>${renderInlineMarkdown(line)}</p>`);
+      });
+
+      closeList();
+      return parts.join('');
+    }
+
+    function getEditorPlainText(editor) {
+      return String(editor && editor.innerText ? editor.innerText : '')
+        .replace(/\u00A0/g, ' ')
+        .replace(/\r/g, '')
+        .replace(/\n$/, '');
+    }
+
+    function getCaretOffset(editor) {
+      const selection = window.getSelection();
+      if (!selection || !selection.rangeCount) {
+        return null;
+      }
+
+      const range = selection.getRangeAt(0);
+      if (!editor.contains(range.endContainer)) {
+        return null;
+      }
+
+      const preCaret = range.cloneRange();
+      preCaret.selectNodeContents(editor);
+      preCaret.setEnd(range.endContainer, range.endOffset);
+      return preCaret.toString().length;
+    }
+
+    function setCaretOffset(editor, targetOffset) {
+      if (typeof targetOffset !== 'number' || targetOffset < 0) {
+        return;
+      }
+
+      const selection = window.getSelection();
+      if (!selection) {
+        return;
+      }
+
+      const range = document.createRange();
+      let remaining = targetOffset;
+
+      function walk(node) {
+        if (node.nodeType === Node.TEXT_NODE) {
+          const length = node.textContent ? node.textContent.length : 0;
+          if (remaining <= length) {
+            range.setStart(node, remaining);
+            range.collapse(true);
+            return true;
+          }
+          remaining -= length;
+          return false;
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const element = node;
+          const isAtomic =
+            element.classList.contains('ticket-tag') ||
+            element.getAttribute('contenteditable') === 'false';
+
+          if (isAtomic) {
+            const length = element.textContent ? element.textContent.length : 0;
+            if (remaining <= length) {
+              range.setStartAfter(element);
+              range.collapse(true);
+              return true;
+            }
+
+            remaining -= length;
+            return false;
+          }
+        }
+
+        if (node.nodeType === Node.ELEMENT_NODE && node.tagName === 'BR') {
+          if (remaining === 0) {
+            range.setStartAfter(node);
+            range.collapse(true);
+            return true;
+          }
+          remaining -= 1;
+          return false;
+        }
+
+        const children = node.childNodes || [];
+        for (let i = 0; i < children.length; i += 1) {
+          if (walk(children[i])) {
+            return true;
+          }
+        }
+
+        return false;
+      }
+
+      if (!walk(editor)) {
+        range.selectNodeContents(editor);
+        range.collapse(false);
+      }
+
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+
+    function renderCellInEditMode(editor, sourceText) {
+      editor.dataset.mode = 'editing';
+      editor.dataset.ticketSig = getTicketTokenSignature(sourceText);
+      editor.innerHTML = renderEditableSourceHtml(sourceText);
+    }
+
+    function renderCellInDisplayMode(editor, sourceText) {
+      editor.dataset.mode = 'display';
+      editor.dataset.ticketSig = '';
+      editor.innerHTML = renderMarkdownToHtml(sourceText);
     }
 
     function showToast(message, type) {
@@ -918,38 +1282,8 @@
       const normalized = normalizeStatus(status);
       const badge = document.createElement('span');
       badge.className = `status-badge ${STATUS_CLASS[normalized]}`;
-      badge.textContent = normalized;
+      badge.textContent = getStatusLabel(normalized);
       return badge;
-    }
-
-    function createTaskNode(task) {
-      const row = document.createElement('div');
-      row.className = 'task-item';
-
-      const left = document.createElement('div');
-      left.className = 'task-main';
-
-      if (task.ticket_id) {
-        const ticketLink = document.createElement('a');
-        ticketLink.className = 'ticket-link';
-        ticketLink.href = buildTicketUrl(task.ticket_id);
-        ticketLink.target = '_blank';
-        ticketLink.rel = 'noopener noreferrer';
-        ticketLink.textContent = task.ticket_id;
-
-        const titleNode = document.createElement('span');
-        const ticket = state.ticketMap[task.ticket_id];
-        const ticketTitle = ticket && ticket.title ? ticket.title : 'Untitled ticket';
-        const freeTextSuffix = task.free_text ? ` - ${task.free_text}` : '';
-        titleNode.textContent = `${ticketTitle}${freeTextSuffix}`;
-
-        left.append(ticketLink, titleNode);
-      } else {
-        left.textContent = task.free_text || 'Untitled task';
-      }
-
-      row.append(left, createStatusBadge(task.status));
-      return row;
     }
 
     function getTasksForMember(date, member) {
@@ -963,31 +1297,33 @@
     }
 
     function renderBoardCell(date, member) {
-      const refs = state.cellRefs.get(cellKey(date, member));
+      const key = cellKey(date, member);
+      const refs = state.cellRefs.get(key);
       if (!refs) {
         return;
       }
 
-      const taskHost = refs.taskHost;
-      taskHost.innerHTML = '';
+      const editor = refs.editor;
 
       if (state.loadingDates.has(date)) {
-        taskHost.appendChild(createSpinnerNode());
+        editor.setAttribute('contenteditable', 'false');
+        editor.innerHTML = '';
+        editor.appendChild(createSpinnerNode());
         return;
       }
 
-      const tasks = getTasksForMember(date, member);
-      if (!tasks.length) {
-        const empty = document.createElement('div');
-        empty.className = 'empty-cell';
-        empty.textContent = 'No tasks';
-        taskHost.appendChild(empty);
+      editor.setAttribute('contenteditable', 'true');
+
+      if (!Object.prototype.hasOwnProperty.call(state.boardDraft, key)) {
+        const tasks = getTasksForMember(date, member);
+        state.boardDraft[key] = serializeTasksForEditor(tasks);
+      }
+
+      if (editor.dataset.mode === 'editing' && document.activeElement === editor) {
         return;
       }
 
-      tasks.forEach((task) => {
-        taskHost.appendChild(createTaskNode(task));
-      });
+      renderCellInDisplayMode(editor, state.boardDraft[key]);
     }
 
     function renderCellsForDate(date) {
@@ -1028,19 +1364,66 @@
           const cell = document.createElement('td');
           cell.className = 'board-cell';
 
-          const taskHost = document.createElement('div');
-          taskHost.className = 'cell-tasks';
+          const key = cellKey(date, member);
 
-          const addBtn = document.createElement('button');
-          addBtn.type = 'button';
-          addBtn.className = 'btn small';
-          addBtn.textContent = '+ add';
-          addBtn.addEventListener('click', () => {
-            openAddTaskModal(date, member);
+          const editor = document.createElement('div');
+          editor.className = 'cell-editor';
+          editor.setAttribute('data-placeholder', 'Write markdown here. Paste ticket URL/ID to render a tag.');
+          editor.setAttribute('contenteditable', 'true');
+          editor.setAttribute('spellcheck', 'false');
+          editor.dataset.mode = 'display';
+
+          editor.addEventListener('focus', () => {
+            if (editor.dataset.mode === 'editing') {
+              return;
+            }
+
+            renderCellInEditMode(editor, state.boardDraft[key] || '');
+            setCaretOffset(editor, getEditorPlainText(editor).length);
           });
 
-          cell.append(taskHost, addBtn);
-          state.cellRefs.set(cellKey(date, member), { taskHost });
+          editor.addEventListener('input', () => {
+            if (editor.dataset.mode !== 'editing') {
+              return;
+            }
+
+            const sourceText = getEditorPlainText(editor);
+            state.boardDraft[key] = sourceText;
+
+            const nextSig = getTicketTokenSignature(sourceText);
+            if (nextSig === (editor.dataset.ticketSig || '')) {
+              return;
+            }
+
+            const caretOffset = getCaretOffset(editor);
+            renderCellInEditMode(editor, sourceText);
+            if (caretOffset !== null) {
+              setCaretOffset(editor, caretOffset);
+            }
+          });
+
+          editor.addEventListener('blur', () => {
+            const sourceText = getEditorPlainText(editor);
+            state.boardDraft[key] = sourceText;
+            renderCellInDisplayMode(editor, sourceText);
+          });
+
+          editor.addEventListener('click', (event) => {
+            if (editor.dataset.mode !== 'display') {
+              return;
+            }
+
+            const link = event.target.closest('a.ticket-tag');
+            if (!link) {
+              return;
+            }
+
+            event.preventDefault();
+            window.open(link.href, '_blank', 'noopener,noreferrer');
+          });
+
+          cell.append(editor);
+          state.cellRefs.set(key, { editor });
           row.appendChild(cell);
         });
 
@@ -1094,7 +1477,7 @@
       STATUS_FLOW.forEach((status) => {
         const option = document.createElement('option');
         option.value = status;
-        option.textContent = status;
+        option.textContent = getStatusLabel(status);
         if (status === fallbackStatus) {
           option.selected = true;
         }
@@ -1276,7 +1659,7 @@
     function openCreateTicketModal() {
       document.getElementById('ticketTitleInput').value = '';
       document.getElementById('ticketDescInput').value = '';
-      document.getElementById('ticketStatusSelect').value = 'todo';
+      document.getElementById('ticketStatusSelect').value = 'to do';
       openModal('createTicketModal');
     }
 
@@ -1318,7 +1701,7 @@
       document.getElementById('taskMemberSelect').value = member;
       document.getElementById('taskTicketSelect').value = '';
       document.getElementById('taskFreeTextInput').value = '';
-      document.getElementById('taskStatusSelect').value = 'todo';
+      document.getElementById('taskStatusSelect').value = 'to do';
       openModal('addTaskModal');
 
       loadTickets(false);
@@ -1327,9 +1710,13 @@
     async function submitAddTask() {
       const date = document.getElementById('taskDateInput').value;
       const member = document.getElementById('taskMemberSelect').value;
-      const ticketId = document.getElementById('taskTicketSelect').value;
+      let ticketId = String(document.getElementById('taskTicketSelect').value || '').trim();
       const freeText = document.getElementById('taskFreeTextInput').value.trim();
       const status = normalizeStatus(document.getElementById('taskStatusSelect').value);
+
+      if (!ticketId) {
+        ticketId = extractTicketId(freeText);
+      }
 
       if (!date) {
         showToast('Task date is required.', 'error');
@@ -1367,6 +1754,63 @@
         showToast(`Add task failed: ${error.message}`, 'error');
       } finally {
         submitBtn.disabled = false;
+      }
+    }
+
+    function syncVisibleEditorsToDraft() {
+      state.cellRefs.forEach((refs, key) => {
+        const editor = refs && refs.editor;
+        if (!editor) {
+          return;
+        }
+
+        if (editor.dataset.mode === 'editing') {
+          const sourceText = getEditorPlainText(editor);
+          state.boardDraft[key] = sourceText;
+          renderCellInDisplayMode(editor, sourceText);
+          return;
+        }
+
+        if (!Object.prototype.hasOwnProperty.call(state.boardDraft, key)) {
+          state.boardDraft[key] = '';
+        }
+      });
+    }
+
+    async function saveBoardChanges() {
+      const button = document.getElementById('saveBoardBtn');
+      button.disabled = true;
+
+      try {
+        syncVisibleEditorsToDraft();
+
+        const cells = [];
+        getVisibleDates().forEach((date) => {
+          MEMBERS.forEach((member) => {
+            const key = cellKey(date, member);
+            cells.push({
+              date,
+              member,
+              text: state.boardDraft[key] || '',
+            });
+          });
+        });
+
+        await apiRequest('/api/board', {
+          method: 'PUT',
+          body: {
+            cells,
+          },
+        });
+
+        state.boardByDate = {};
+        state.boardDraft = {};
+        await loadVisibleBoardDates(true);
+        showToast('Board saved successfully.', 'success');
+      } catch (error) {
+        showToast(`Save failed: ${error.message}`, 'error');
+      } finally {
+        button.disabled = false;
       }
     }
 
@@ -1577,9 +2021,12 @@
 
       document.getElementById('refreshBoardBtn').addEventListener('click', async () => {
         await loadTickets(true);
+        state.boardDraft = {};
         await loadVisibleBoardDates(true);
         showToast('Board refreshed.', 'success');
       });
+
+      document.getElementById('saveBoardBtn').addEventListener('click', saveBoardChanges);
 
       document.getElementById('reloadTicketsBtn').addEventListener('click', async () => {
         await loadTickets(true);
@@ -1610,8 +2057,8 @@
       renderMembersEditor();
       renderAddTaskMemberOptions();
 
-      populateStatusSelect(document.getElementById('ticketStatusSelect'), 'todo');
-      populateStatusSelect(document.getElementById('taskStatusSelect'), 'todo');
+      populateStatusSelect(document.getElementById('ticketStatusSelect'), 'to do');
+      populateStatusSelect(document.getElementById('taskStatusSelect'), 'to do');
 
       const monday = getCurrentWeekMondayIso();
       state.displayedWeekStarts = [monday];
@@ -1630,6 +2077,15 @@
       if (ticketId) {
         await showTicketDetail(ticketId);
         return;
+      }
+
+      await bootstrapBoard();
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>        return;
       }
 
       await bootstrapBoard();

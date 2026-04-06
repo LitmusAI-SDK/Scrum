@@ -1,7 +1,18 @@
 const { getSheetsClient, getSpreadsheetId } = require('./_sheets');
 
 const TICKETS_RANGE = 'tickets!A2:E';
-const ALLOWED_STATUSES = ['todo', 'in prog', 'review', 'done', 'on hold'];
+const ALLOWED_STATUSES = ['to do', 'in progress', 'in review', 'done', 'on hold'];
+const STATUS_ALIASES = {
+  todo: 'to do',
+  'to do': 'to do',
+  'in prog': 'in progress',
+  'in progress': 'in progress',
+  review: 'in review',
+  'in review': 'in review',
+  done: 'done',
+  'on hold': 'on hold',
+  'on-hold': 'on hold',
+};
 
 function buildHeaders() {
   return {
@@ -31,7 +42,7 @@ function parseJsonBody(event) {
 
 function normalizeStatus(status) {
   const normalized = String(status || '').trim().toLowerCase();
-  return ALLOWED_STATUSES.includes(normalized) ? normalized : null;
+  return STATUS_ALIASES[normalized] || null;
 }
 
 function mapTicketRow(row = []) {
@@ -39,7 +50,7 @@ function mapTicketRow(row = []) {
     id: row[0] || '',
     title: row[1] || '',
     description: row[2] || '',
-    status: normalizeStatus(row[3]) || 'todo',
+    status: normalizeStatus(row[3]) || 'to do',
     created_at: row[4] || '',
   };
 }
@@ -90,7 +101,7 @@ exports.handler = async (event) => {
       const body = parseJsonBody(event);
       const title = String(body.title || '').trim();
       const description = String(body.description || '').trim();
-      const status = normalizeStatus(body.status || 'todo');
+      const status = normalizeStatus(body.status || 'to do');
 
       if (!title) {
         return response(400, { error: 'Field "title" is required.' });
