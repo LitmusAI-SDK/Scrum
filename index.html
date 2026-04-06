@@ -1,0 +1,1641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LITMUS Scrum Board</title>
+  <style>
+    :root {
+      --accent: #1d9e75;
+      --bg: #0f1614;
+      --panel: #18211e;
+      --panel-alt: #121a18;
+      --text: #d8ece5;
+      --muted: #8fb8ac;
+      --border: #29443b;
+      --danger: #d86a93;
+      --todo: #8f9dab;
+      --in-prog: #3d7ed6;
+      --review: #d4a34d;
+      --done: #1d9e75;
+      --on-hold: #d86a93;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      background: radial-gradient(circle at top left, #1d2a26 0%, #0f1614 50%, #0b100f 100%);
+      color: var(--text);
+      font-family: Consolas, "Liberation Mono", Menlo, Monaco, "Courier New", monospace;
+    }
+
+    body {
+      padding: 24px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .app-shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      background: linear-gradient(145deg, #17221f 0%, #111a17 100%);
+      overflow: hidden;
+      box-shadow: 0 18px 45px rgba(0, 0, 0, 0.3);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, #193028 0%, #13231f 100%);
+    }
+
+    .topbar h1 {
+      margin: 0;
+      font-size: 24px;
+      letter-spacing: 1.2px;
+    }
+
+    .topbar p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: #14201d;
+    }
+
+    .tab-btn {
+      border: none;
+      border-right: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      padding: 12px 16px;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      font-size: 12px;
+      transition: all 140ms ease;
+    }
+
+    .tab-btn:hover {
+      color: var(--text);
+      background: #1a2a25;
+    }
+
+    .tab-btn.active {
+      color: var(--text);
+      background: linear-gradient(90deg, rgba(29, 158, 117, 0.22), rgba(29, 158, 117, 0.06));
+      border-bottom: 2px solid var(--accent);
+    }
+
+    main {
+      padding: 16px;
+    }
+
+    .tab-panel {
+      display: none;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    .panel-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #15221e;
+      color: var(--text);
+      padding: 8px 12px;
+      font-family: inherit;
+      font-size: 12px;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      transition: transform 120ms ease, border-color 120ms ease;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      border-color: #356254;
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .btn.accent {
+      border-color: #2aa27d;
+      background: linear-gradient(90deg, #1b6d53, #1d9e75);
+      color: #eefaf6;
+    }
+
+    .btn.small {
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+
+    .btn.danger {
+      border-color: #8c2f4f;
+      color: #f4c7d7;
+      background: #311622;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--panel-alt);
+    }
+
+    table {
+      width: 100%;
+      min-width: 840px;
+      border-collapse: collapse;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+      vertical-align: top;
+      text-align: left;
+      padding: 10px;
+      font-size: 12px;
+    }
+
+    th:last-child,
+    td:last-child {
+      border-right: none;
+    }
+
+    th {
+      background: #1a2924;
+      color: #d7f7ec;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td.date-col {
+      white-space: nowrap;
+      min-width: 130px;
+      color: #bde2d5;
+      background: #14211d;
+    }
+
+    .board-cell {
+      min-width: 210px;
+      background: #131c19;
+    }
+
+    .cell-tasks {
+      min-height: 62px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .task-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border: 1px solid #274239;
+      border-radius: 8px;
+      padding: 6px;
+      background: #172521;
+      animation: fade-in 220ms ease;
+    }
+
+    .task-main {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      line-height: 1.3;
+      color: #d3ece4;
+    }
+
+    .ticket-link {
+      color: #99efcf;
+      text-decoration: none;
+      border-bottom: 1px dashed #4eaf8e;
+    }
+
+    .ticket-link:hover {
+      color: #cbffe9;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 3px 8px;
+      border: 1px solid transparent;
+      white-space: nowrap;
+    }
+
+    .status-todo {
+      color: #d5dde6;
+      border-color: #7f8b96;
+      background: rgba(127, 139, 150, 0.2);
+    }
+
+    .status-in-prog {
+      color: #d8e7ff;
+      border-color: #5f95de;
+      background: rgba(61, 126, 214, 0.28);
+    }
+
+    .status-review {
+      color: #fff0d2;
+      border-color: #d4a34d;
+      background: rgba(212, 163, 77, 0.22);
+    }
+
+    .status-done {
+      color: #d4f5ea;
+      border-color: #40b994;
+      background: rgba(29, 158, 117, 0.26);
+    }
+
+    .status-on-hold {
+      color: #ffdce8;
+      border-color: #d86a93;
+      background: rgba(216, 106, 147, 0.22);
+    }
+
+    .empty-cell,
+    .empty-state {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .spinner-wrap {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid rgba(29, 158, 117, 0.26);
+      border-top-color: var(--accent);
+      animation: spin 0.85s linear infinite;
+    }
+
+    .ticket-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 12px;
+    }
+
+    .ticket-card {
+      border: 1px solid var(--border);
+      background: linear-gradient(160deg, #182521, #131d1a);
+      border-radius: 12px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      animation: fade-in 220ms ease;
+    }
+
+    .ticket-title {
+      margin: 0;
+      color: #d9f4eb;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .ticket-description {
+      margin: 0;
+      color: #b2d7ca;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .ticket-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: #a6cabf;
+    }
+
+    .ticket-url {
+      color: #9deacb;
+      text-decoration: none;
+      border-bottom: 1px dashed #56b694;
+    }
+
+    .setup-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .field label {
+      color: #b3ddd0;
+      font-size: 12px;
+      letter-spacing: 0.5px;
+    }
+
+    .input,
+    .textarea,
+    .select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: #111b18;
+      color: #d8ece5;
+      font-family: inherit;
+      font-size: 12px;
+      padding: 8px;
+      outline: none;
+    }
+
+    .textarea {
+      min-height: 82px;
+      resize: vertical;
+    }
+
+    .input:focus,
+    .textarea:focus,
+    .select:focus {
+      border-color: #3f9579;
+      box-shadow: 0 0 0 2px rgba(29, 158, 117, 0.2);
+    }
+
+    .members-editor {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .member-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(5, 8, 7, 0.7);
+      backdrop-filter: blur(3px);
+    }
+
+    .modal-card {
+      width: min(560px, 100%);
+      border-radius: 14px;
+      border: 1px solid #315448;
+      background: linear-gradient(150deg, #182521, #101917);
+      box-shadow: 0 26px 48px rgba(0, 0, 0, 0.42);
+      padding: 16px;
+      animation: fade-in 180ms ease;
+    }
+
+    .modal-card h3 {
+      margin: 0 0 8px;
+      font-size: 15px;
+      letter-spacing: 0.6px;
+    }
+
+    .modal-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 8px;
+    }
+
+    .modal-grid .field.full {
+      grid-column: 1 / -1;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      z-index: 20;
+      min-width: 200px;
+      max-width: min(420px, 90vw);
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid #376456;
+      background: #172621;
+      color: #ddf3ec;
+      font-size: 12px;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+      animation: slide-up 180ms ease;
+    }
+
+    .toast.error {
+      border-color: #91455f;
+      background: #2a141d;
+      color: #f8d7e3;
+    }
+
+    .toast.success {
+      border-color: #3f9579;
+      background: #173127;
+      color: #d7f7e9;
+    }
+
+    .ticket-detail {
+      max-width: 700px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: linear-gradient(150deg, #182521, #111917);
+      padding: 18px;
+    }
+
+    .ticket-detail h2 {
+      margin: 4px 0 8px;
+      font-size: 20px;
+    }
+
+    .ticket-detail p {
+      margin: 0;
+      color: #b8d9ce;
+      line-height: 1.5;
+    }
+
+    .ticket-detail .detail-meta {
+      margin-top: 10px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes fade-in {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes slide-up {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 820px) {
+      body {
+        padding: 10px;
+      }
+
+      .topbar {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .topbar-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+
+      .modal-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="appShell" class="app-shell hidden">
+    <header class="topbar">
+      <div>
+        <h1>LITMUS Scrum Board</h1>
+        <p>Single-page board powered by Netlify Functions + Google Sheets</p>
+      </div>
+      <div class="topbar-actions">
+        <button id="openCreateTicketBtn" class="btn accent" type="button">+ Create Ticket</button>
+        <button id="refreshBoardBtn" class="btn" type="button">Refresh Board</button>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Main tabs">
+      <button class="tab-btn active" data-tab="board" type="button">Board</button>
+      <button class="tab-btn" data-tab="tickets" type="button">Tickets</button>
+      <button class="tab-btn" data-tab="setup" type="button">Setup</button>
+    </nav>
+
+    <main>
+      <section id="tab-board" class="tab-panel active">
+        <div class="panel-controls">
+          <div id="weekSummary" class="empty-state"></div>
+          <button id="appendWeekBtn" class="btn accent" type="button">Append Next Week</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="boardHead"></thead>
+            <tbody id="boardBody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="tab-tickets" class="tab-panel">
+        <div class="panel-controls">
+          <div class="empty-state">All tickets from the `tickets` sheet tab.</div>
+          <button id="reloadTicketsBtn" class="btn" type="button">Reload Tickets</button>
+        </div>
+        <div id="ticketsContainer" class="ticket-grid"></div>
+      </section>
+
+      <section id="tab-setup" class="tab-panel">
+        <div class="setup-grid">
+          <div class="field">
+            <label for="sheetIdInput">GOOGLE_SHEET_ID</label>
+            <input id="sheetIdInput" class="input" type="text" placeholder="Paste your sheet ID" />
+          </div>
+          <div class="field">
+            <label for="siteUrlInput">NETLIFY_SITE_URL</label>
+            <input id="siteUrlInput" class="input" type="text" placeholder="https://your-site.netlify.app" />
+          </div>
+        </div>
+        <div class="panel-controls">
+          <button id="saveSetupBtn" class="btn accent" type="button">Save Setup</button>
+          <button id="testConnectionBtn" class="btn" type="button">Test connection</button>
+        </div>
+
+        <div class="field">
+          <label>Members</label>
+          <div id="membersEditor" class="members-editor"></div>
+        </div>
+
+        <button id="addMemberBtn" class="btn" type="button">+ add member</button>
+      </section>
+    </main>
+  </div>
+
+  <section id="ticketDetailView" class="ticket-detail hidden"></section>
+
+  <div id="createTicketModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Create Ticket">
+      <h3>Create Ticket</h3>
+      <div class="modal-grid">
+        <div class="field full">
+          <label for="ticketTitleInput">Title</label>
+          <input id="ticketTitleInput" class="input" type="text" placeholder="Write a concise ticket title" />
+        </div>
+        <div class="field full">
+          <label for="ticketDescInput">Description</label>
+          <textarea id="ticketDescInput" class="textarea" placeholder="Short problem statement or acceptance notes"></textarea>
+        </div>
+        <div class="field">
+          <label for="ticketStatusSelect">Status</label>
+          <select id="ticketStatusSelect" class="select"></select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-close-modal="createTicketModal">Cancel</button>
+        <button id="createTicketSubmitBtn" class="btn accent" type="button">Create Ticket</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="addTaskModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-label="Add Task">
+      <h3>Add Task To Board</h3>
+      <div class="modal-grid">
+        <div class="field">
+          <label for="taskMemberSelect">Member</label>
+          <select id="taskMemberSelect" class="select"></select>
+        </div>
+        <div class="field">
+          <label for="taskDateInput">Date</label>
+          <input id="taskDateInput" class="input" type="date" />
+        </div>
+        <div class="field full">
+          <label for="taskTicketSelect">Ticket (optional)</label>
+          <select id="taskTicketSelect" class="select"></select>
+        </div>
+        <div class="field full">
+          <label for="taskFreeTextInput">Free text (optional)</label>
+          <input id="taskFreeTextInput" class="input" type="text" placeholder="If not tied to ticket, write custom task text" />
+        </div>
+        <div class="field">
+          <label for="taskStatusSelect">Status</label>
+          <select id="taskStatusSelect" class="select"></select>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn" type="button" data-close-modal="addTaskModal">Cancel</button>
+        <button id="addTaskSubmitBtn" class="btn accent" type="button">Add Task</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script>
+    const MEMBERS = ['Devansh', 'Devasy', 'Niel'];
+    // To add a member: just push a new name to this array.
+    // The board column and sheet grouping will update automatically.
+
+    const STORAGE_KEYS = {
+      sheetId: 'litmus_google_sheet_id',
+      siteUrl: 'litmus_netlify_site_url',
+    };
+
+    const STATUS_FLOW = ['todo', 'in prog', 'review', 'done', 'on hold'];
+    const STATUS_CLASS = {
+      todo: 'status-todo',
+      'in prog': 'status-in-prog',
+      review: 'status-review',
+      done: 'status-done',
+      'on hold': 'status-on-hold',
+    };
+
+    const state = {
+      activeTab: 'board',
+      displayedWeekStarts: [],
+      boardByDate: {},
+      loadingDates: new Set(),
+      cellRefs: new Map(),
+      tickets: [],
+      ticketMap: {},
+      loadingTickets: false,
+      ticketsLoaded: false,
+      toastTimer: null,
+    };
+
+    function normalizeStatus(status) {
+      const value = String(status || '').trim().toLowerCase();
+      return STATUS_FLOW.includes(value) ? value : 'todo';
+    }
+
+    function getNextStatus(status) {
+      const current = normalizeStatus(status);
+      const currentIndex = STATUS_FLOW.indexOf(current);
+      return STATUS_FLOW[(currentIndex + 1) % STATUS_FLOW.length];
+    }
+
+    function getStoredSiteUrl() {
+      const stored = (localStorage.getItem(STORAGE_KEYS.siteUrl) || '').trim();
+      return stored || window.location.origin;
+    }
+
+    function buildTicketUrl(ticketId) {
+      return `${getStoredSiteUrl().replace(/\/$/, '')}/${encodeURIComponent(ticketId)}`;
+    }
+
+    function showToast(message, type) {
+      const toast = document.getElementById('toast');
+      toast.classList.remove('hidden', 'error', 'success');
+      if (type === 'error') {
+        toast.classList.add('error');
+      }
+      if (type === 'success') {
+        toast.classList.add('success');
+      }
+      toast.textContent = message;
+
+      if (state.toastTimer) {
+        clearTimeout(state.toastTimer);
+      }
+
+      state.toastTimer = setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 3600);
+    }
+
+    async function apiRequest(path, options) {
+      const settings = {
+        method: (options && options.method) || 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      };
+
+      if (options && Object.prototype.hasOwnProperty.call(options, 'body')) {
+        settings.body = JSON.stringify(options.body);
+      }
+
+      let response;
+      try {
+        response = await fetch(path, settings);
+      } catch (error) {
+        throw new Error('Network request failed.');
+      }
+
+      const rawBody = await response.text();
+      let parsedBody = null;
+      if (rawBody) {
+        try {
+          parsedBody = JSON.parse(rawBody);
+        } catch (error) {
+          parsedBody = rawBody;
+        }
+      }
+
+      if (!response.ok) {
+        const message = parsedBody && parsedBody.error ? parsedBody.error : `Request failed (${response.status})`;
+        throw new Error(message);
+      }
+
+      return parsedBody;
+    }
+
+    function toIsoDateUTC(date) {
+      return date.toISOString().slice(0, 10);
+    }
+
+    function fromIsoDate(dateString) {
+      const parts = String(dateString).split('-').map(Number);
+      if (parts.length !== 3 || parts.some(Number.isNaN)) {
+        return null;
+      }
+      return new Date(Date.UTC(parts[0], parts[1] - 1, parts[2]));
+    }
+
+    function addDaysUTC(date, days) {
+      const copy = new Date(date);
+      copy.setUTCDate(copy.getUTCDate() + days);
+      return copy;
+    }
+
+    function getCurrentWeekMondayIso() {
+      const now = new Date();
+      const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+      const day = utcDate.getUTCDay();
+      const diff = day === 0 ? -6 : 1 - day;
+      utcDate.setUTCDate(utcDate.getUTCDate() + diff);
+      return toIsoDateUTC(utcDate);
+    }
+
+    function getWeekDates(weekStartIso) {
+      const startDate = fromIsoDate(weekStartIso);
+      if (!startDate) {
+        return [];
+      }
+
+      const dates = [];
+      for (let i = 0; i < 7; i += 1) {
+        dates.push(toIsoDateUTC(addDaysUTC(startDate, i)));
+      }
+      return dates;
+    }
+
+    function getVisibleDates() {
+      const dates = [];
+      state.displayedWeekStarts.forEach((weekStart) => {
+        dates.push(...getWeekDates(weekStart));
+      });
+      return dates;
+    }
+
+    function formatDateLabel(isoDate) {
+      const date = fromIsoDate(isoDate);
+      if (!date) {
+        return isoDate;
+      }
+
+      return date.toLocaleDateString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'UTC',
+      });
+    }
+
+    function updateWeekSummary() {
+      const target = document.getElementById('weekSummary');
+      if (!state.displayedWeekStarts.length) {
+        target.textContent = 'No weeks selected.';
+        return;
+      }
+
+      const labels = state.displayedWeekStarts.map((weekStart) => {
+        const dates = getWeekDates(weekStart);
+        const end = dates[6] || weekStart;
+        return `${weekStart} to ${end}`;
+      });
+      target.textContent = `Visible weeks: ${labels.join(' | ')}`;
+    }
+
+    function cellKey(date, member) {
+      return `${date}:::${member}`;
+    }
+
+    function createSpinnerNode() {
+      const wrap = document.createElement('div');
+      wrap.className = 'spinner-wrap';
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      const label = document.createElement('span');
+      label.textContent = 'Loading';
+      wrap.append(spinner, label);
+      return wrap;
+    }
+
+    function createStatusBadge(status) {
+      const normalized = normalizeStatus(status);
+      const badge = document.createElement('span');
+      badge.className = `status-badge ${STATUS_CLASS[normalized]}`;
+      badge.textContent = normalized;
+      return badge;
+    }
+
+    function createTaskNode(task) {
+      const row = document.createElement('div');
+      row.className = 'task-item';
+
+      const left = document.createElement('div');
+      left.className = 'task-main';
+
+      if (task.ticket_id) {
+        const ticketLink = document.createElement('a');
+        ticketLink.className = 'ticket-link';
+        ticketLink.href = buildTicketUrl(task.ticket_id);
+        ticketLink.target = '_blank';
+        ticketLink.rel = 'noopener noreferrer';
+        ticketLink.textContent = task.ticket_id;
+
+        const titleNode = document.createElement('span');
+        const ticket = state.ticketMap[task.ticket_id];
+        const ticketTitle = ticket && ticket.title ? ticket.title : 'Untitled ticket';
+        const freeTextSuffix = task.free_text ? ` - ${task.free_text}` : '';
+        titleNode.textContent = `${ticketTitle}${freeTextSuffix}`;
+
+        left.append(ticketLink, titleNode);
+      } else {
+        left.textContent = task.free_text || 'Untitled task';
+      }
+
+      row.append(left, createStatusBadge(task.status));
+      return row;
+    }
+
+    function getTasksForMember(date, member) {
+      const dateBucket = state.boardByDate[date];
+      if (!dateBucket || !dateBucket.members) {
+        return [];
+      }
+
+      const tasks = dateBucket.members[member];
+      return Array.isArray(tasks) ? tasks : [];
+    }
+
+    function renderBoardCell(date, member) {
+      const refs = state.cellRefs.get(cellKey(date, member));
+      if (!refs) {
+        return;
+      }
+
+      const taskHost = refs.taskHost;
+      taskHost.innerHTML = '';
+
+      if (state.loadingDates.has(date)) {
+        taskHost.appendChild(createSpinnerNode());
+        return;
+      }
+
+      const tasks = getTasksForMember(date, member);
+      if (!tasks.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-cell';
+        empty.textContent = 'No tasks';
+        taskHost.appendChild(empty);
+        return;
+      }
+
+      tasks.forEach((task) => {
+        taskHost.appendChild(createTaskNode(task));
+      });
+    }
+
+    function renderCellsForDate(date) {
+      MEMBERS.forEach((member) => renderBoardCell(date, member));
+    }
+
+    function renderBoardTable() {
+      const head = document.getElementById('boardHead');
+      const body = document.getElementById('boardBody');
+
+      head.innerHTML = '';
+      body.innerHTML = '';
+      state.cellRefs.clear();
+
+      const headRow = document.createElement('tr');
+      const dateHead = document.createElement('th');
+      dateHead.textContent = 'Date';
+      headRow.appendChild(dateHead);
+
+      MEMBERS.forEach((member) => {
+        const memberHead = document.createElement('th');
+        memberHead.textContent = member;
+        headRow.appendChild(memberHead);
+      });
+
+      head.appendChild(headRow);
+
+      const visibleDates = getVisibleDates();
+      visibleDates.forEach((date) => {
+        const row = document.createElement('tr');
+
+        const dateCell = document.createElement('td');
+        dateCell.className = 'date-col';
+        dateCell.textContent = `${formatDateLabel(date)} (${date})`;
+        row.appendChild(dateCell);
+
+        MEMBERS.forEach((member) => {
+          const cell = document.createElement('td');
+          cell.className = 'board-cell';
+
+          const taskHost = document.createElement('div');
+          taskHost.className = 'cell-tasks';
+
+          const addBtn = document.createElement('button');
+          addBtn.type = 'button';
+          addBtn.className = 'btn small';
+          addBtn.textContent = '+ add';
+          addBtn.addEventListener('click', () => {
+            openAddTaskModal(date, member);
+          });
+
+          cell.append(taskHost, addBtn);
+          state.cellRefs.set(cellKey(date, member), { taskHost });
+          row.appendChild(cell);
+        });
+
+        body.appendChild(row);
+      });
+
+      visibleDates.forEach((date) => renderCellsForDate(date));
+    }
+
+    async function loadBoardDate(date) {
+      state.loadingDates.add(date);
+      renderCellsForDate(date);
+
+      try {
+        const data = await apiRequest(`/api/board?date=${encodeURIComponent(date)}`);
+        const members = data && data.members && typeof data.members === 'object' ? data.members : {};
+        state.boardByDate[date] = {
+          date,
+          members,
+        };
+      } catch (error) {
+        state.boardByDate[date] = {
+          date,
+          members: {},
+        };
+        showToast(`Failed to load board for ${date}: ${error.message}`, 'error');
+      } finally {
+        state.loadingDates.delete(date);
+        renderCellsForDate(date);
+      }
+    }
+
+    async function loadVisibleBoardDates(forceReload) {
+      const dates = getVisibleDates();
+      const jobs = [];
+
+      dates.forEach((date) => {
+        if (!forceReload && state.boardByDate[date]) {
+          return;
+        }
+        jobs.push(loadBoardDate(date));
+      });
+
+      if (jobs.length) {
+        await Promise.all(jobs);
+      }
+    }
+
+    function populateStatusSelect(selectElement, fallbackStatus) {
+      selectElement.innerHTML = '';
+      STATUS_FLOW.forEach((status) => {
+        const option = document.createElement('option');
+        option.value = status;
+        option.textContent = status;
+        if (status === fallbackStatus) {
+          option.selected = true;
+        }
+        selectElement.appendChild(option);
+      });
+    }
+
+    function renderAddTaskMemberOptions() {
+      const select = document.getElementById('taskMemberSelect');
+      select.innerHTML = '';
+      MEMBERS.forEach((member) => {
+        const option = document.createElement('option');
+        option.value = member;
+        option.textContent = member;
+        select.appendChild(option);
+      });
+    }
+
+    function rebuildTicketMap() {
+      const map = {};
+      state.tickets.forEach((ticket) => {
+        map[ticket.id] = ticket;
+      });
+      state.ticketMap = map;
+    }
+
+    function renderTaskTicketOptions() {
+      const select = document.getElementById('taskTicketSelect');
+      select.innerHTML = '';
+
+      const empty = document.createElement('option');
+      empty.value = '';
+      empty.textContent = '-- none --';
+      select.appendChild(empty);
+
+      state.tickets.forEach((ticket) => {
+        const option = document.createElement('option');
+        option.value = ticket.id;
+        option.textContent = `${ticket.id} - ${ticket.title}`;
+        select.appendChild(option);
+      });
+    }
+
+    function normalizeTicket(ticket) {
+      return {
+        id: String(ticket.id || '').trim(),
+        title: String(ticket.title || '').trim(),
+        description: String(ticket.description || '').trim(),
+        status: normalizeStatus(ticket.status),
+        created_at: String(ticket.created_at || '').trim(),
+      };
+    }
+
+    async function loadTickets(forceReload) {
+      if (state.loadingTickets) {
+        return;
+      }
+
+      if (state.ticketsLoaded && !forceReload) {
+        return;
+      }
+
+      state.loadingTickets = true;
+      try {
+        const list = await apiRequest('/api/tickets');
+        state.tickets = Array.isArray(list) ? list.map(normalizeTicket) : [];
+        state.ticketsLoaded = true;
+        rebuildTicketMap();
+        renderTaskTicketOptions();
+        renderTicketsTab();
+
+        getVisibleDates().forEach((date) => {
+          renderCellsForDate(date);
+        });
+      } catch (error) {
+        showToast(`Failed to load tickets: ${error.message}`, 'error');
+      } finally {
+        state.loadingTickets = false;
+      }
+    }
+
+    function renderTicketsTab() {
+      const host = document.getElementById('ticketsContainer');
+      host.innerHTML = '';
+
+      if (state.loadingTickets && !state.tickets.length) {
+        host.appendChild(createSpinnerNode());
+        return;
+      }
+
+      if (!state.tickets.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty-state';
+        empty.textContent = 'No tickets found yet.';
+        host.appendChild(empty);
+        return;
+      }
+
+      state.tickets.forEach((ticket) => {
+        const card = document.createElement('article');
+        card.className = 'ticket-card';
+
+        const title = document.createElement('h3');
+        title.className = 'ticket-title';
+        title.textContent = `${ticket.id} - ${ticket.title || '(No title)'}`;
+
+        const desc = document.createElement('p');
+        desc.className = 'ticket-description';
+        desc.textContent = ticket.description || '(No description)';
+
+        const meta = document.createElement('div');
+        meta.className = 'ticket-meta';
+        meta.append(createStatusBadge(ticket.status));
+
+        const urlLink = document.createElement('a');
+        urlLink.className = 'ticket-url';
+        urlLink.href = buildTicketUrl(ticket.id);
+        urlLink.target = '_blank';
+        urlLink.rel = 'noopener noreferrer';
+        urlLink.textContent = buildTicketUrl(ticket.id);
+        meta.appendChild(urlLink);
+
+        const cycleBtn = document.createElement('button');
+        cycleBtn.type = 'button';
+        cycleBtn.className = 'btn small';
+        cycleBtn.textContent = `Cycle Status -> ${getNextStatus(ticket.status)}`;
+        cycleBtn.addEventListener('click', () => {
+          cycleTicketStatus(ticket.id);
+        });
+
+        card.append(title, desc, meta, cycleBtn);
+        host.appendChild(card);
+      });
+    }
+
+    async function cycleTicketStatus(ticketId) {
+      const ticket = state.ticketMap[ticketId];
+      if (!ticket) {
+        showToast(`Ticket ${ticketId} not found in cache.`, 'error');
+        return;
+      }
+
+      const nextStatus = getNextStatus(ticket.status);
+      try {
+        const updated = await apiRequest('/api/tickets', {
+          method: 'PATCH',
+          body: {
+            id: ticketId,
+            status: nextStatus,
+          },
+        });
+
+        const normalized = normalizeTicket(updated || {});
+        const index = state.tickets.findIndex((item) => item.id === ticketId);
+        if (index >= 0) {
+          state.tickets[index] = normalized;
+        }
+        rebuildTicketMap();
+        renderTicketsTab();
+        getVisibleDates().forEach((date) => renderCellsForDate(date));
+        showToast(`Ticket ${ticketId} updated to ${normalized.status}.`, 'success');
+      } catch (error) {
+        showToast(`Status update failed: ${error.message}`, 'error');
+      }
+    }
+
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      modal.classList.remove('hidden');
+      modal.setAttribute('aria-hidden', 'false');
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      modal.classList.add('hidden');
+      modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function openCreateTicketModal() {
+      document.getElementById('ticketTitleInput').value = '';
+      document.getElementById('ticketDescInput').value = '';
+      document.getElementById('ticketStatusSelect').value = 'todo';
+      openModal('createTicketModal');
+    }
+
+    async function submitCreateTicket() {
+      const title = document.getElementById('ticketTitleInput').value.trim();
+      const description = document.getElementById('ticketDescInput').value.trim();
+      const status = normalizeStatus(document.getElementById('ticketStatusSelect').value);
+
+      if (!title) {
+        showToast('Ticket title is required.', 'error');
+        return;
+      }
+
+      const submitBtn = document.getElementById('createTicketSubmitBtn');
+      submitBtn.disabled = true;
+      try {
+        const created = await apiRequest('/api/tickets', {
+          method: 'POST',
+          body: {
+            title,
+            description,
+            status,
+          },
+        });
+
+        closeModal('createTicketModal');
+        showToast(`Created ${created.id}.`, 'success');
+        await loadTickets(true);
+        renderTicketsTab();
+      } catch (error) {
+        showToast(`Ticket creation failed: ${error.message}`, 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function openAddTaskModal(date, member) {
+      document.getElementById('taskDateInput').value = date;
+      document.getElementById('taskMemberSelect').value = member;
+      document.getElementById('taskTicketSelect').value = '';
+      document.getElementById('taskFreeTextInput').value = '';
+      document.getElementById('taskStatusSelect').value = 'todo';
+      openModal('addTaskModal');
+
+      loadTickets(false);
+    }
+
+    async function submitAddTask() {
+      const date = document.getElementById('taskDateInput').value;
+      const member = document.getElementById('taskMemberSelect').value;
+      const ticketId = document.getElementById('taskTicketSelect').value;
+      const freeText = document.getElementById('taskFreeTextInput').value.trim();
+      const status = normalizeStatus(document.getElementById('taskStatusSelect').value);
+
+      if (!date) {
+        showToast('Task date is required.', 'error');
+        return;
+      }
+
+      if (!member) {
+        showToast('Task member is required.', 'error');
+        return;
+      }
+
+      if (!ticketId && !freeText) {
+        showToast('Choose a ticket or provide free text.', 'error');
+        return;
+      }
+
+      const submitBtn = document.getElementById('addTaskSubmitBtn');
+      submitBtn.disabled = true;
+      try {
+        await apiRequest('/api/board', {
+          method: 'POST',
+          body: {
+            date,
+            member,
+            ticket_id: ticketId,
+            free_text: freeText,
+            status,
+          },
+        });
+
+        closeModal('addTaskModal');
+        showToast('Task added to board.', 'success');
+        await loadBoardDate(date);
+      } catch (error) {
+        showToast(`Add task failed: ${error.message}`, 'error');
+      } finally {
+        submitBtn.disabled = false;
+      }
+    }
+
+    function readSetupInputs() {
+      document.getElementById('sheetIdInput').value = localStorage.getItem(STORAGE_KEYS.sheetId) || '';
+      document.getElementById('siteUrlInput').value = localStorage.getItem(STORAGE_KEYS.siteUrl) || '';
+    }
+
+    function saveSetupInputs() {
+      const sheetId = document.getElementById('sheetIdInput').value.trim();
+      const siteUrl = document.getElementById('siteUrlInput').value.trim();
+
+      if (sheetId) {
+        localStorage.setItem(STORAGE_KEYS.sheetId, sheetId);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.sheetId);
+      }
+
+      if (siteUrl) {
+        localStorage.setItem(STORAGE_KEYS.siteUrl, siteUrl);
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.siteUrl);
+      }
+
+      renderTicketsTab();
+      getVisibleDates().forEach((date) => renderCellsForDate(date));
+      showToast('Setup saved locally.', 'success');
+    }
+
+    async function testConnection() {
+      const button = document.getElementById('testConnectionBtn');
+      button.disabled = true;
+      try {
+        const list = await apiRequest('/api/tickets');
+        const count = Array.isArray(list) ? list.length : 0;
+        showToast(`Connection successful. ${count} tickets fetched.`, 'success');
+      } catch (error) {
+        showToast(`Connection failed: ${error.message}`, 'error');
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    function renderMembersEditor() {
+      const host = document.getElementById('membersEditor');
+      host.innerHTML = '';
+
+      MEMBERS.forEach((member, index) => {
+        const row = document.createElement('div');
+        row.className = 'member-row';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'input';
+        input.value = member;
+        input.addEventListener('change', () => {
+          const nextValue = input.value.trim() || `Member ${index + 1}`;
+          MEMBERS[index] = nextValue;
+          refreshMemberDependentUi();
+        });
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'btn danger small';
+        removeBtn.textContent = 'remove';
+        removeBtn.addEventListener('click', () => {
+          if (MEMBERS.length <= 1) {
+            showToast('At least one member is required.', 'error');
+            return;
+          }
+
+          MEMBERS.splice(index, 1);
+          refreshMemberDependentUi();
+        });
+
+        row.append(input, removeBtn);
+        host.appendChild(row);
+      });
+    }
+
+    function refreshMemberDependentUi() {
+      renderMembersEditor();
+      renderAddTaskMemberOptions();
+      renderBoardTable();
+      updateWeekSummary();
+      getVisibleDates().forEach((date) => renderCellsForDate(date));
+    }
+
+    function setActiveTab(tabName) {
+      state.activeTab = tabName;
+
+      document.querySelectorAll('.tab-btn').forEach((button) => {
+        button.classList.toggle('active', button.getAttribute('data-tab') === tabName);
+      });
+
+      document.querySelectorAll('.tab-panel').forEach((panel) => {
+        panel.classList.toggle('active', panel.id === `tab-${tabName}`);
+      });
+
+      if (tabName === 'tickets') {
+        loadTickets(false);
+      }
+    }
+
+    function parseRouteTicketId() {
+      const trimmed = window.location.pathname.replace(/^\/+|\/+$/g, '');
+      if (!trimmed) {
+        return null;
+      }
+
+      if (!/^LITMUS-\d+$/i.test(trimmed)) {
+        return null;
+      }
+
+      return trimmed.toUpperCase();
+    }
+
+    async function showTicketDetail(ticketId) {
+      const detailView = document.getElementById('ticketDetailView');
+      detailView.classList.remove('hidden');
+      detailView.innerHTML = '';
+
+      const loadingWrap = document.createElement('div');
+      loadingWrap.className = 'spinner-wrap';
+      loadingWrap.append(createSpinnerNode());
+      detailView.appendChild(loadingWrap);
+
+      try {
+        const tickets = await apiRequest('/api/tickets');
+        const ticket = Array.isArray(tickets)
+          ? tickets.map(normalizeTicket).find((item) => item.id === ticketId)
+          : null;
+
+        detailView.innerHTML = '';
+
+        const title = document.createElement('h2');
+        title.textContent = ticket ? `${ticket.id} - ${ticket.title || '(No title)'}` : `Ticket ${ticketId} not found`;
+
+        const description = document.createElement('p');
+        description.textContent = ticket
+          ? ticket.description || '(No description provided)'
+          : 'This ticket ID does not exist in the tickets sheet.';
+
+        const meta = document.createElement('div');
+        meta.className = 'detail-meta';
+        if (ticket) {
+          meta.appendChild(createStatusBadge(ticket.status));
+        }
+
+        const backButton = document.createElement('button');
+        backButton.type = 'button';
+        backButton.className = 'btn';
+        backButton.textContent = 'Back to board';
+        backButton.addEventListener('click', () => {
+          window.location.href = '/';
+        });
+        meta.appendChild(backButton);
+
+        detailView.append(title, description, meta);
+      } catch (error) {
+        detailView.innerHTML = '';
+        const title = document.createElement('h2');
+        title.textContent = `Ticket ${ticketId}`;
+        const errorNode = document.createElement('p');
+        errorNode.textContent = `Failed to load ticket details: ${error.message}`;
+        const backButton = document.createElement('button');
+        backButton.type = 'button';
+        backButton.className = 'btn';
+        backButton.textContent = 'Back to board';
+        backButton.addEventListener('click', () => {
+          window.location.href = '/';
+        });
+        detailView.append(title, errorNode, backButton);
+      }
+    }
+
+    function wireEvents() {
+      document.querySelectorAll('.tab-btn').forEach((button) => {
+        button.addEventListener('click', () => {
+          const tab = button.getAttribute('data-tab');
+          setActiveTab(tab);
+        });
+      });
+
+      document.getElementById('openCreateTicketBtn').addEventListener('click', openCreateTicketModal);
+      document.getElementById('createTicketSubmitBtn').addEventListener('click', submitCreateTicket);
+      document.getElementById('addTaskSubmitBtn').addEventListener('click', submitAddTask);
+
+      document.querySelectorAll('[data-close-modal]').forEach((button) => {
+        button.addEventListener('click', () => {
+          closeModal(button.getAttribute('data-close-modal'));
+        });
+      });
+
+      document.getElementById('appendWeekBtn').addEventListener('click', async () => {
+        const lastWeek = state.displayedWeekStarts[state.displayedWeekStarts.length - 1];
+        const startDate = fromIsoDate(lastWeek);
+        if (!startDate) {
+          return;
+        }
+
+        const nextWeek = toIsoDateUTC(addDaysUTC(startDate, 7));
+        state.displayedWeekStarts.push(nextWeek);
+        updateWeekSummary();
+        renderBoardTable();
+        await loadVisibleBoardDates(false);
+      });
+
+      document.getElementById('refreshBoardBtn').addEventListener('click', async () => {
+        await loadTickets(true);
+        await loadVisibleBoardDates(true);
+        showToast('Board refreshed.', 'success');
+      });
+
+      document.getElementById('reloadTicketsBtn').addEventListener('click', async () => {
+        await loadTickets(true);
+      });
+
+      document.getElementById('saveSetupBtn').addEventListener('click', saveSetupInputs);
+      document.getElementById('testConnectionBtn').addEventListener('click', testConnection);
+
+      document.getElementById('addMemberBtn').addEventListener('click', () => {
+        MEMBERS.push(`Member ${MEMBERS.length + 1}`);
+        refreshMemberDependentUi();
+      });
+
+      document.querySelectorAll('.modal').forEach((modal) => {
+        modal.addEventListener('click', (event) => {
+          if (event.target === modal) {
+            modal.classList.add('hidden');
+            modal.setAttribute('aria-hidden', 'true');
+          }
+        });
+      });
+    }
+
+    async function bootstrapBoard() {
+      document.getElementById('appShell').classList.remove('hidden');
+      setActiveTab('board');
+      readSetupInputs();
+      renderMembersEditor();
+      renderAddTaskMemberOptions();
+
+      populateStatusSelect(document.getElementById('ticketStatusSelect'), 'todo');
+      populateStatusSelect(document.getElementById('taskStatusSelect'), 'todo');
+
+      const monday = getCurrentWeekMondayIso();
+      state.displayedWeekStarts = [monday];
+
+      updateWeekSummary();
+      renderBoardTable();
+
+      await loadTickets(false);
+      await loadVisibleBoardDates(false);
+    }
+
+    async function bootstrap() {
+      wireEvents();
+
+      const ticketId = parseRouteTicketId();
+      if (ticketId) {
+        await showTicketDetail(ticketId);
+        return;
+      }
+
+      await bootstrapBoard();
+    }
+
+    bootstrap();
+  </script>
+</body>
+</html>
