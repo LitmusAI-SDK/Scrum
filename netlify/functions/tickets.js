@@ -1,18 +1,8 @@
 const { getSheetsClient, getSpreadsheetId } = require('./_sheets');
+const { STATUS_ALIASES, ALLOWED_PRIORITIES } = require('../../shared/workflow-constants');
 
-const TICKETS_RANGE = 'tickets!A2:E';
+const TICKETS_RANGE = 'tickets!A2:I';
 const ALLOWED_STATUSES = ['to do', 'in progress', 'in review', 'done', 'on hold'];
-const STATUS_ALIASES = {
-  todo: 'to do',
-  'to do': 'to do',
-  'in prog': 'in progress',
-  'in progress': 'in progress',
-  review: 'in review',
-  'in review': 'in review',
-  done: 'done',
-  'on hold': 'on hold',
-  'on-hold': 'on hold',
-};
 
 function buildHeaders() {
   return {
@@ -45,6 +35,11 @@ function normalizeStatus(status) {
   return STATUS_ALIASES[normalized] || null;
 }
 
+function normalizePriority(priority) {
+  const normalized = String(priority || '').trim().toLowerCase();
+  return ALLOWED_PRIORITIES.includes(normalized) ? normalized : 'medium';
+}
+
 function mapTicketRow(row = []) {
   return {
     id: row[0] || '',
@@ -52,6 +47,10 @@ function mapTicketRow(row = []) {
     description: row[2] || '',
     status: normalizeStatus(row[3]) || 'to do',
     created_at: row[4] || '',
+    assignee: row[5] || '',
+    priority: normalizePriority(row[6]),
+    updated_at: row[7] || '',
+    closed_at: row[8] || '',
   };
 }
 
@@ -102,6 +101,8 @@ exports.handler = async (event) => {
       const title = String(body.title || '').trim();
       const description = String(body.description || '').trim();
       const status = normalizeStatus(body.status || 'to do');
+      const assignee = String(body.assignee || '').trim();
+      const priority = normalizePriority(body.priority || 'medium');
 
       if (!title) {
         return response(400, { error: 'Field "title" is required.' });
@@ -115,12 +116,15 @@ exports.handler = async (event) => {
 
       const rows = await readTicketRows(sheets, spreadsheetId);
       const id = computeNextTicketId(rows);
-      const createdAt = new Date().toISOString();
-      const newRow = [id, title, description, status, createdAt];
+      const now = new Date().toISOString();
+      const createdAt = now;
+      const updatedAt = now;
+      const closedAt = status === 'done' ? now : '';
+      const newRow = [id, title, description, status, createdAt, assignee, priority, updatedAt, closedAt];
 
       await sheets.spreadsheets.values.append({
         spreadsheetId,
-        range: 'tickets!A:E',
+        range: 'tickets!A:I',
         valueInputOption: 'RAW',
         requestBody: {
           values: [newRow],
@@ -133,16 +137,9 @@ exports.handler = async (event) => {
     if (event.httpMethod === 'PATCH') {
       const body = parseJsonBody(event);
       const id = String(body.id || '').trim();
-      const status = normalizeStatus(body.status);
 
       if (!id) {
         return response(400, { error: 'Field "id" is required.' });
-      }
-
-      if (!status) {
-        return response(400, {
-          error: `Field "status" must be one of: ${ALLOWED_STATUSES.join(', ')}.`,
-        });
       }
 
       const rows = await readTicketRows(sheets, spreadsheetId);
@@ -152,18 +149,40 @@ exports.handler = async (event) => {
         return response(404, { error: `Ticket ${id} not found.` });
       }
 
+      const updatedRow = rows[rowIndex].slice();
+      while (updatedRow.length < 9) updatedRow.push('');
+
+      if (body.title !== undefined) updatedRow[1] = String(body.title).trim();
+      if (body.description !== undefined) updatedRow[2] = String(body.description).trim();
+      if (body.status !== undefined) {
+        const status = normalizeStatus(body.status);
+        if (!status) {
+          return response(400, {
+            error: `Field "status" must be one of: ${ALLOWED_STATUSES.join(', ')}.`,
+          });
+        }
+        updatedRow[3] = status;
+        if (status === 'done' && !updatedRow[8]) {
+          updatedRow[8] = new Date().toISOString();
+        } else if (status !== 'done') {
+          updatedRow[8] = '';
+        }
+      }
+      if (body.assignee !== undefined) updatedRow[5] = String(body.assignee).trim();
+      if (body.priority !== undefined) updatedRow[6] = normalizePriority(body.priority);
+      
+      updatedRow[7] = new Date().toISOString(); // updated_at
+
       const targetRowNumber = rowIndex + 2;
       await sheets.spreadsheets.values.update({
         spreadsheetId,
-        range: `tickets!D${targetRowNumber}`,
+        range: `tickets!A${targetRowNumber}:I${targetRowNumber}`,
         valueInputOption: 'RAW',
         requestBody: {
-          values: [[status]],
+          values: [updatedRow],
         },
       });
 
-      const updatedRow = rows[rowIndex].slice();
-      updatedRow[3] = status;
       return response(200, mapTicketRow(updatedRow));
     }
 

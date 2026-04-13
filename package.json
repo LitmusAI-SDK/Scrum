@@ -1,8 +1,14 @@
 {
-  "name": "litmus-scrum-board",
+  "name": "litmus-scrum",
   "private": true,
   "version": "1.0.0",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
   "dependencies": {
+    "dotenv": "^17.4.1",
+    "express": "^4.21.2",
     "googleapis": "^140.0.0"
   }
 }
