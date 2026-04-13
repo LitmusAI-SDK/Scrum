@@ -230,7 +230,7 @@ td.date-col {
   line-height: 1.45;
   outline: none;
   white-space: pre-wrap;
-  word-break: break-word;
+  overflow-wrap: break-word;
   cursor: text;
   direction: ltr;
   text-align: left;

@@ -6,10 +6,15 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(express.static(path.join(__dirname, 'public')));
 
 app.all('/api/*', async (req, res) => {
   const functionName = req.params[0];
+
+  if (!/^[A-Za-z0-9_-]+$/.test(functionName)) {
+    return res.status(404).send('Invalid function name');
+  }
+
   try {
     const handler = require(`./netlify/functions/${functionName}`).handler;
     const event = {

@@ -15,6 +15,10 @@ View your app in AI Studio: https://ai.studio/apps/c53829e5-f9a9-4522-8b82-9caf5
 
 1. Install dependencies:
    `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+2. Add the following to `.env.local` (create it if needed):
+   - `GOOGLE_SHEET_ID` - Your Google Sheet ID
+   - `GOOGLE_SERVICE_ACCOUNT_KEY` - Your service account JSON as a single-line string (all quotes escaped)
+   - These environment variables are referenced in `netlify/functions/_sheets.js`
+   - Note: `GOOGLE_SERVICE_ACCOUNT_KEY` should be the full JSON key formatted as a single line
 3. Run the app:
    `npm run dev`

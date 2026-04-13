@@ -223,9 +223,8 @@ export async function saveBoardChanges() {
       },
     });
 
-    state.boardByDate = {};
-    state.boardDraft = {};
     await loadVisibleBoardDates(true);
+    state.boardDraft = {};
     showToast('Board saved successfully.', 'success');
   } catch (error) {
     showToast(`Save failed: ${error.message}`, 'error');
