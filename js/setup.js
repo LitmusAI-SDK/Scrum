@@ -2,6 +2,24 @@ import { MEMBERS, STORAGE_KEYS } from './state.js';
 import { getStoredSiteUrl, showToast } from './utils.js';
 import { apiRequest } from './api.js';
 
+export function persistMembers() {
+  localStorage.setItem('LITMUS_MEMBERS', JSON.stringify(MEMBERS));
+}
+
+export function loadPersistedMembers() {
+  const stored = localStorage.getItem('LITMUS_MEMBERS');
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        MEMBERS.splice(0, MEMBERS.length, ...parsed);
+      }
+    } catch (e) {
+      console.error('Failed to parse stored members:', e);
+    }
+  }
+}
+
 export function renderMembersEditor() {
   const host = document.getElementById('membersEditor');
   host.innerHTML = '';
@@ -15,7 +33,10 @@ export function renderMembersEditor() {
     input.className = 'input';
     input.value = member;
     input.addEventListener('input', (e) => {
-      MEMBERS[index] = e.target.value.trim();
+      const value = e.target.value.trim();
+      if (value) {
+        MEMBERS[index] = value;
+      }
     });
 
     const removeBtn = document.createElement('button');
@@ -24,6 +45,7 @@ export function renderMembersEditor() {
     removeBtn.textContent = 'Remove';
     removeBtn.addEventListener('click', () => {
       MEMBERS.splice(index, 1);
+      persistMembers();
       renderMembersEditor();
     });
 
@@ -36,10 +58,12 @@ export function initSetupTab() {
   const siteUrlInput = document.getElementById('siteUrlInput');
   siteUrlInput.value = getStoredSiteUrl();
 
+  loadPersistedMembers();
   renderMembersEditor();
 
   document.getElementById('addMemberBtn').addEventListener('click', () => {
     MEMBERS.push(`Member ${MEMBERS.length + 1}`);
+    persistMembers();
     renderMembersEditor();
   });
 
@@ -50,6 +74,7 @@ export function initSetupTab() {
     } else {
       localStorage.removeItem(STORAGE_KEYS.siteUrl);
     }
+    persistMembers();
     showToast('Setup saved locally.', 'success');
   });
 

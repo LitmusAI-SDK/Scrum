@@ -188,6 +188,19 @@ function initEventHandlers() {
       memberSelect.appendChild(option);
     });
 
+    const taskTicketSelect = document.getElementById('taskTicketSelect');
+    taskTicketSelect.innerHTML = '';
+    const emptyOption = document.createElement('option');
+    emptyOption.value = '';
+    emptyOption.textContent = '(None)';
+    taskTicketSelect.appendChild(emptyOption);
+    state.tickets.forEach((ticket) => {
+      const option = document.createElement('option');
+      option.value = ticket.id;
+      option.textContent = `${ticket.id} - ${ticket.title}`;
+      taskTicketSelect.appendChild(option);
+    });
+
     document.getElementById('taskTextInput').value = '';
     openModal('addTaskModal');
   });
