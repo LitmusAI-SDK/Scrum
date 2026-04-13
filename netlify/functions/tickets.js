@@ -1,19 +1,8 @@
 const { getSheetsClient, getSpreadsheetId } = require('./_sheets');
+const { STATUS_ALIASES, ALLOWED_PRIORITIES } = require('../../shared/workflow-constants');
 
 const TICKETS_RANGE = 'tickets!A2:I';
 const ALLOWED_STATUSES = ['to do', 'in progress', 'in review', 'done', 'on hold'];
-const ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'critical'];
-const STATUS_ALIASES = {
-  todo: 'to do',
-  'to do': 'to do',
-  'in prog': 'in progress',
-  'in progress': 'in progress',
-  review: 'in review',
-  'in review': 'in review',
-  done: 'done',
-  'on hold': 'on hold',
-  'on-hold': 'on hold',
-};
 
 function buildHeaders() {
   return {

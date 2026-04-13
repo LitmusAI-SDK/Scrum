@@ -1,18 +1,8 @@
 const { getSheetsClient, getSpreadsheetId } = require('./_sheets');
+const { STATUS_ALIASES } = require('../../shared/workflow-constants');
 
 const BOARD_RANGE = 'board!A2:E';
 const ALLOWED_STATUSES = ['to do', 'in progress', 'in review', 'done', 'on hold'];
-const STATUS_ALIASES = {
-  todo: 'to do',
-  'to do': 'to do',
-  'in prog': 'in progress',
-  'in progress': 'in progress',
-  review: 'in review',
-  'in review': 'in review',
-  done: 'done',
-  'on hold': 'on hold',
-  'on-hold': 'on hold',
-};
 
 function response(statusCode, body) {
   return {
